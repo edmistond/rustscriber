@@ -1,2 +1,5 @@
 /target
 output.wav
+
+settings.local.json
+.claude
