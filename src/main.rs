@@ -1,10 +1,16 @@
+mod audio_config;
 mod device_enumerator;
+mod transcriber;
 mod wav_recorder;
 
 use clap::Parser;
 use cpal::traits::{DeviceTrait, HostTrait};
 use std::io::{self, Write};
+use std::path::Path;
+use transcriber::Transcriber;
 use wav_recorder::WavRecorder;
+
+const MODEL_PATH: &str = "/Users/edmistond/Downloads/prs-nemotron";
 
 #[derive(Parser)]
 #[command(name = "rustscriber")]
@@ -27,30 +33,22 @@ fn main() {
         return;
     }
 
+    let host = cpal::default_host();
+    let device = host
+        .default_input_device()
+        .expect("No default input device found");
+    println!("Using input device: {:?}", device.description());
+
+    let (supported_config, sample_format) = audio_config::select_input_config(&device)
+        .expect("Failed to select input config");
+    let config: cpal::StreamConfig = supported_config.into();
+
+    println!(
+        "Audio config: {} channels, {} Hz, {:?}",
+        config.channels, config.sample_rate, sample_format
+    );
+
     if let Some(filename) = args.record {
-        let host = cpal::default_host();
-        println!("Audio host: {:?}", host.id());
-
-        let device = host
-            .default_input_device()
-            .expect("No default input device found");
-        println!("Using input device: {:?}", device.description());
-
-        let config = device
-            .supported_input_configs()
-            .expect("Failed to get supported configs")
-            .next()
-            .expect("No supported config found")
-            .with_max_sample_rate();
-
-        let sample_format = config.sample_format();
-        let config: cpal::StreamConfig = config.into();
-
-        println!(
-            "Recording with: {} channels, {} Hz, {:?}",
-            config.channels, config.sample_rate, sample_format
-        );
-
         let recorder = WavRecorder::new(&filename, &device, &config, sample_format)
             .expect("Failed to create WAV recorder");
 
@@ -66,9 +64,18 @@ fn main() {
             .expect("Failed to finalize recording");
         println!("Recording saved to {}", filename);
     } else {
-        println!(
-            "No mode specified. Use --enumerate to list devices or --record <FILE> to record."
-        );
-        println!("ASR support coming soon.");
+        // Default: live ASR
+        let t = Transcriber::new(Path::new(MODEL_PATH), &device, &config, sample_format)
+            .expect("Failed to create transcriber");
+
+        t.start().expect("Failed to start transcription");
+        println!("\nListening... Press Enter to stop.\n");
+
+        let _ = io::stdout().flush();
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
+
+        t.stop();
+        println!("\nTranscription stopped.");
     }
 }
