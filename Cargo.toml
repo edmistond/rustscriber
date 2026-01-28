@@ -9,3 +9,9 @@ cpal = "0.17"
 hound = "3.5"
 parakeet-rs = "0.3"
 rubato = "0.14"
+
+[features]
+default = []
+coreml = ["parakeet-rs/coreml"]
+directml = ["parakeet-rs/directml"]
+migraphx = ["parakeet-rs/migraphx"]
