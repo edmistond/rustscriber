@@ -2,6 +2,8 @@
 
 A real-time audio transcription tool built in Rust using NVIDIA's Parakeet speech recognition models via ONNX.
 
+> **Note** parakeet-rs supports speaker diarization. However, that is not currently implemented in rustscriber. I plan to iterate extensively on this application in the near future (including adding a GUI) so it is extremely in flux.
+
 ## Dependencies
 
 - [parakeet-rs](https://github.com/altunenes/parakeet-rs) - NVIDIA Parakeet ASR & speaker diarization via ONNX
