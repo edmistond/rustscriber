@@ -7,11 +7,16 @@ const MAX_RATE: u32 = 48000;
 pub fn select_input_config(
     device: &Device,
 ) -> Result<(SupportedStreamConfig, SampleFormat), Box<dyn std::error::Error>> {
-    let supported = device.supported_input_configs()?;
-
-    // Try each config range against our preferred rates
     let configs: Vec<_> = device.supported_input_configs()?.collect();
-    drop(supported);
+
+    // On Windows, an output device used for WASAPI loopback won't have input
+    // configs — fall back to its output configs so we pick a valid format.
+    #[cfg(target_os = "windows")]
+    let configs: Vec<_> = if configs.is_empty() {
+        device.supported_output_configs()?.collect()
+    } else {
+        configs
+    };
 
     for &rate in &PREFERRED_RATES {
         for range in &configs {

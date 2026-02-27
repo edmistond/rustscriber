@@ -20,7 +20,8 @@ struct Args {
     #[arg(long)]
     enumerate: bool,
 
-    /// Select input device by ID (see --enumerate for available IDs)
+    /// Select device by ID (see --enumerate). On Windows, output device IDs
+    /// can be used for loopback recording (captures system audio via WASAPI).
     #[arg(long, value_name = "DEVICE_ID")]
     input: Option<String>,
 
@@ -39,19 +40,32 @@ fn main() {
 
     let host = cpal::default_host();
     let device = if let Some(ref device_id) = args.input {
-        host.input_devices()
+        let find_by_id = |d: &cpal::Device| {
+            d.id()
+                .map(|id| id.to_string() == *device_id)
+                .unwrap_or(false)
+        };
+        let device = host
+            .input_devices()
             .expect("Failed to list input devices")
-            .find(|d| {
-                d.id()
-                    .map(|id| id.to_string() == *device_id)
-                    .unwrap_or(false)
-            })
-            .unwrap_or_else(|| panic!("No input device found with ID: {}", device_id))
+            .find(|d| find_by_id(d));
+
+        // On Windows, CPAL's WASAPI backend supports loopback recording:
+        // using an output device as input automatically sets the
+        // AUDCLNT_STREAMFLAGS_LOOPBACK flag, capturing system audio.
+        #[cfg(target_os = "windows")]
+        let device = device.or_else(|| {
+            host.output_devices()
+                .expect("Failed to list output devices")
+                .find(|d| find_by_id(d))
+        });
+
+        device.unwrap_or_else(|| panic!("No device found with ID: {}", device_id))
     } else {
         host.default_input_device()
             .expect("No default input device found")
     };
-    println!("Using input device: {:?}", device.description());
+    println!("Using device: {:?}", device.description());
 
     let (supported_config, sample_format) = audio_config::select_input_config(&device)
         .expect("Failed to select input config");
